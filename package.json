@@ -1,0 +1,81 @@
+{
+  "name": "pixel-notes",
+  "displayName": "PixelNotes",
+  "description": "A pixel-art note-taking workspace for your code",
+  "version": "0.0.1",
+  "publisher": "pixel-notes",
+  "engines": { "vscode": "^1.100.0" },
+  "extensionKind": ["ui"],
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pixel-notes-container",
+          "title": "PixelNotes",
+          "icon": "assets/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "pixel-notes-container": [
+        {
+          "type": "webview",
+          "id": "pixelNotes.mainView",
+          "name": "PixelNotes",
+          "retainContextWhenHidden": false
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "pixelNotes.newNote",
+        "title": "PixelNotes: New Note",
+        "icon": "$(add)"
+      },
+      {
+        "command": "pixelNotes.pickCodeRef",
+        "title": "PixelNotes: Add Code Reference to Note"
+      },
+      {
+        "command": "pixelNotes.sendToAI",
+        "title": "PixelNotes: Send Active Note to AI"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "pixelNotes.pickCodeRef",
+          "group": "pixelNotes@1",
+          "when": "editorFocus"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "pixelNotes.newNote",
+          "when": "view == pixelNotes.mainView",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build:ext": "node esbuild.mjs",
+    "build:webview": "cd webview-ui && npm run build",
+    "build": "npm run build:webview && npm run build:ext",
+    "watch:ext": "node esbuild.mjs --watch",
+    "watch:webview": "cd webview-ui && npm run dev",
+    "watch": "concurrently \"npm run watch:ext\" \"npm run watch:webview\"",
+    "package": "node esbuild.mjs --production && cd webview-ui && npx vite build && npx vsce package",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.100.0",
+    "concurrently": "^9.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}
