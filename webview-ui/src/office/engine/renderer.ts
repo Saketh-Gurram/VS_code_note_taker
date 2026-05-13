@@ -153,7 +153,7 @@ export function renderScene(ctx: CanvasRenderingContext2D, scene: RenderScene): 
     if (eggs.catMeow > 0 && characters[2]) {
       const cat = characters[2]; // cat is index 2 in NoteRoomState
       const bx = Math.round(cat.x * SCALE) - 24;
-      const by = Math.round(cat.y * SCALE) - 52;
+      const by = Math.round(cat.y * SCALE) - 72;
       ctx.save();
       ctx.globalAlpha = Math.min(1, eggs.catMeow);
       // Bubble background
@@ -223,75 +223,126 @@ const CHAR_SHIRT = ['#89b4fa','#a6e3a1','#cba6f7','#f38ba8','#f9e2af','#94e2d5']
 const CHAR_HAIR  = ['#1e1e2e','#6b3a2a','#c4a35a','#1e1e2e','#5a3e85','#2d4a1e'];
 
 // ── Cat (spriteIndex === 6, canvas-drawn) ──────────────────────────────────────
+// ── Cat (spriteIndex === 6) — proper quadruped, side/front/back views ──────────
 function drawCat(ctx: CanvasRenderingContext2D, char: CharState, time: number): void {
   ctx.save();
-  const P = 5; // art-pixels; cat is intentionally smaller than humans
+  const P = 5;
   const cx = Math.round(char.x * SCALE);
-  const cy = Math.round(char.y * SCALE - 12 * P);
+  // cy is the top-of-ears baseline; paws land at char.y * SCALE (ground)
+  const cy = Math.round(char.y * SCALE - 11 * P);
 
+  // px: art-pixel rect relative to (cx, cy), y increases downward
   const px = (x: number, y: number, w: number, h: number, color: string) => {
     ctx.fillStyle = color;
     ctx.fillRect(cx + x * P, cy + y * P, w * P, h * P);
   };
 
-  const facing = char.dir;
+  const facing  = char.dir;
   const walking = char.anim === 'walk';
-  const walkBob = walking ? Math.floor(char.frame / 2) % 2 : 0; // subtle bob
+  // Diagonal gait: front-near + back-far lift together, then swap
+  const gaitA   = walking ? (Math.floor(char.frame / 2) % 2 === 0) : true;
+  const tailSwing = Math.round(Math.sin(time * 3.0) * 1.5);
+  const blink   = Math.floor(time * 0.7) % 9 === 8;
 
-  // Body
-  px(-3, 4 + walkBob, 6, 4, '#9e7a5a');
-  px(-3, 4 + walkBob, 6, 1, '#c4a07a'); // top sheen
-  px(-3, 7 + walkBob, 6, 1, '#6e4e34'); // bottom shadow
+  if (facing === 'right' || facing === 'left') {
+    // ── Side view ─────────────────────────────────────────────────────────────
+    // Horizontally mirror everything for left-facing
+    const mp = (x: number, y: number, w: number, h: number, color: string) =>
+      px(facing === 'left' ? -(x + w) : x, y, w, h, color);
 
-  // Legs — alternate when walking
-  if (walking) {
-    const a = char.frame % 2 === 0;
-    px(-2, 8 + walkBob, 1, 2, a ? '#7a5a3a' : '#5a3a1a');
-    px( 0, 8 + walkBob, 1, 2, a ? '#5a3a1a' : '#7a5a3a');
-    px( 1, 8 + walkBob, 1, 2, a ? '#7a5a3a' : '#5a3a1a');
-  } else {
-    px(-2, 8, 1, 2, '#7a5a3a');
-    px( 0, 8, 1, 2, '#7a5a3a');
-    px( 1, 8, 1, 2, '#7a5a3a');
-  }
+    // Tail (drawn first — behind body)
+    mp(-5, 5, 2, 1, '#9e7a5a');                        // base
+    mp(-5 + tailSwing, 3, 1, 3, '#9e7a5a');            // shaft
+    mp(-5 + tailSwing, 2, 2, 1, '#c4a07a');            // tip
 
-  // Head
-  px(-2, 0 + walkBob, 5, 4, '#9e7a5a');
-  px(-2, 0 + walkBob, 5, 1, '#c4a07a');
+    // Body (horizontal slab)
+    mp(-3, 4, 6, 3, '#9e7a5a');
+    mp(-3, 4, 6, 1, '#c4a07a');  // top sheen
+    mp(-3, 6, 6, 1, '#6e4e34');  // belly shadow
 
-  // Ears
-  px(-2, -2 + walkBob, 2, 2, '#9e7a5a');
-  px( 1, -2 + walkBob, 2, 2, '#9e7a5a');
-  px(-1, -1 + walkBob, 1, 1, '#f0b0b0'); // inner ear
-  px( 2, -1 + walkBob, 1, 1, '#f0b0b0');
+    // Neck
+    mp(2, 2, 2, 3, '#9e7a5a');
+    mp(2, 4, 2, 1, '#b08060');   // neck-top highlight
 
-  if (facing !== 'up') {
-    // Eyes
-    const blink = Math.floor(time * 0.7) % 9 === 8;
+    // Head
+    mp(3, 1, 4, 4, '#9e7a5a');
+    mp(3, 4, 4, 1, '#c4a07a');   // head-top sheen
+
+    // Ears (two triangular bumps)
+    mp(3, -1, 2, 2, '#9e7a5a');  // back ear
+    mp(5, -1, 2, 2, '#9e7a5a');  // front ear
+    mp(4,  0, 1, 1, '#f0b0b0');  // back inner ear
+    mp(6,  0, 1, 1, '#f0b0b0');  // front inner ear
+
+    // Face
     if (!blink) {
-      px(-1, 1 + walkBob, 1, 1, '#1e1e2e');
-      px( 1, 1 + walkBob, 1, 1, '#1e1e2e');
-      // eye shine
-      px(-1, 1 + walkBob, 1, 1, '#1e1e2e');
+      mp(5, 2, 1, 1, '#1e1e2e'); // eye
     } else {
-      px(-1, 2 + walkBob, 2, 1, '#7a5a3a'); // closed eyes
+      mp(4, 3, 3, 1, '#7a5a3a'); // blink line
     }
-    // Nose + whiskers
-    px( 0, 3 + walkBob, 1, 1, '#f08080');
-    px(-3, 2 + walkBob, 2, 1, '#c4a07a'); // left whisker
-    px( 2, 2 + walkBob, 2, 1, '#c4a07a'); // right whisker
-  }
+    mp(6, 3, 1, 1, '#f08080');   // nose
+    mp(7, 2, 2, 1, '#c4a07a');   // upper whisker
+    mp(7, 3, 2, 1, '#c4a07a');   // lower whisker
 
-  // Tail — sways based on time
-  const swing = Math.round(Math.sin(time * 3.0) * 1.5);
-  if (facing === 'left' || facing === 'down') {
-    px( 3, 5 + walkBob, 2, 1, '#9e7a5a');
-    px( 4 + swing, 3 + walkBob, 1, 2, '#9e7a5a');
-    px( 4 + swing, 2 + walkBob, 2, 1, '#c4a07a'); // tip
+    // 4 Legs — near legs lighter, far legs darker (depth)
+    // Diagonal gait alternates pairs
+    const fN = gaitA ? '#7a5a3a' : '#5a3a1a'; // front near
+    const fF = gaitA ? '#5a3a1a' : '#7a5a3a'; // front far
+    const bN = gaitA ? '#5a3a1a' : '#7a5a3a'; // back near
+    const bF = gaitA ? '#7a5a3a' : '#5a3a1a'; // back far
+    mp( 1, 7, 1, 3, fF);   // front far leg
+    mp( 2, 7, 1, 3, fN);   // front near leg
+    mp(-3, 7, 1, 3, bF);   // back far leg
+    mp(-2, 7, 1, 3, bN);   // back near leg
+    // Paws
+    mp( 1, 10, 2, 1, '#b08060');  // front paws
+    mp(-3, 10, 2, 1, '#b08060');  // back paws
+
   } else {
-    px(-4, 5 + walkBob, 2, 1, '#9e7a5a');
-    px(-5 + swing, 3 + walkBob, 1, 2, '#9e7a5a');
-    px(-6 + swing, 2 + walkBob, 2, 1, '#c4a07a');
+    // ── Front (down) or back (up) view ────────────────────────────────────────
+    const isFront = facing === 'down';
+
+    // Body
+    px(-2, 4, 5, 3, '#9e7a5a');
+    px(-2, 4, 5, 1, '#c4a07a');
+
+    // Head
+    px(-2, 1, 5, 4, '#9e7a5a');
+    px(-2, 4, 5, 1, '#c4a07a');
+
+    // Ears
+    px(-2, -1, 2, 2, '#9e7a5a');
+    px( 1, -1, 2, 2, '#9e7a5a');
+    px(-1,  0, 1, 1, '#f0b0b0');
+    px( 2,  0, 1, 1, '#f0b0b0');
+
+    // Face (front only)
+    if (isFront) {
+      if (!blink) {
+        px(-1, 2, 1, 1, '#1e1e2e');
+        px( 1, 2, 1, 1, '#1e1e2e');
+      } else {
+        px(-1, 3, 3, 1, '#7a5a3a');
+      }
+      px( 0, 3, 1, 1, '#f08080');
+      px(-3, 2, 2, 1, '#c4a07a');
+      px( 2, 2, 2, 1, '#c4a07a');
+    }
+
+    // 4 legs (2 near, 2 far — side by side)
+    const lL = gaitA ? '#7a5a3a' : '#5a3a1a';
+    const lR = gaitA ? '#5a3a1a' : '#7a5a3a';
+    px(-2, 7, 1, 3, lL);
+    px(-1, 7, 1, 3, '#6a4a2a');
+    px( 1, 7, 1, 3, '#6a4a2a');
+    px( 2, 7, 1, 3, lR);
+    px(-2, 10, 2, 1, '#b08060');
+    px( 1, 10, 2, 1, '#b08060');
+
+    // Tail peeking from side
+    const ts = Math.round(Math.sin(time * 3.0) * 1.5);
+    px(3, 5 + ts, 1, 2, '#9e7a5a');
+    px(4, 4 + ts, 1, 1, '#c4a07a');
   }
 
   ctx.restore();
