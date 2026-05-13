@@ -18,7 +18,13 @@ export function getNoteRoomDecorations(time: number): Decoration[] {
   const now = new Date();
   const realHour = now.getHours();
   const realMin = now.getMinutes();
+  const month = now.getMonth(); // 0 = Jan … 11 = Dec
+
   return [
+    // ── Seasonal ──────────────────────────────────────────────────────────────
+    ...(month === 11 ? [{ zY: -2, draw: (c: CanvasRenderingContext2D) => drawChristmasLights(c, time) }] : []),
+    ...(month === 3  ? [{ zY: P * 0.3, draw: (c: CanvasRenderingContext2D) => drawCherryBlossoms(c, time) }] : []),
+    // ── Always-present ────────────────────────────────────────────────────────
     { zY: 0,        draw: (c) => drawWindow(c, time, realHour, realMin) },
     { zY: P * 0.8,  draw: (c) => drawWhiteboard(c) },
     { zY: P * 0.9,  draw: (c) => drawClock(c, time, realHour, realMin) },
@@ -27,11 +33,12 @@ export function getNoteRoomDecorations(time: number): Decoration[] {
     { zY: P * 4.8,  draw: (c) => drawSofaLeft(c) },
     { zY: P * 4.8,  draw: (c) => drawSofaRight(c) },
     { zY: P * 5.5,  draw: (c) => drawDeskSurface(c) },
+    ...(month === 9  ? [{ zY: P * 5.51, draw: (c: CanvasRenderingContext2D) => drawPumpkin(c) }] : []),
     { zY: P * 5.6,  draw: (c) => drawMonitor(c, time) },
     { zY: P * 5.7,  draw: (c) => drawLamp(c) },
     { zY: P * 5.8,  draw: (c) => drawCoffeeMug(c, time) },
     { zY: P * 9.5,  draw: (c) => drawDeskFront(c) },
-    { zY: P * 9.8,  draw: (c) => drawChair(c) },         // chair in front of desk
+    { zY: P * 9.8,  draw: (c) => drawChair(c) },
     // ── character renders here at zY ≈ 540 ──
     { zY: P * 11.5, draw: (c) => drawPlant(c) },
   ];
@@ -558,6 +565,132 @@ function drawChair(ctx: CanvasRenderingContext2D) {
   r(ctx, '#2a1508', cx + 16, sy + 22,  6, 14);
   // Cross bar
   r(ctx, '#1e1008', cx - 16, sy + 30, 32,  4);
+}
+
+// ── Christmas lights (December) ───────────────────────────────────────────────
+// Strings of coloured bulbs along the top wall, left to right
+function drawChristmasLights(ctx: CanvasRenderingContext2D, time: number) {
+  const colors = ['#ff4444', '#44dd44', '#4488ff', '#ffdd22', '#ee44ee'];
+  const startX = 1 * P, endX = 21 * P, wireY = P - 4;
+
+  ctx.save();
+
+  // Wire
+  ctx.strokeStyle = '#2a1a0a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(startX, wireY);
+  ctx.lineTo(endX, wireY);
+  ctx.stroke();
+
+  const spacing = 20;
+  let idx = 0;
+  for (let x = startX + 10; x < endX - 6; x += spacing, idx++) {
+    const color = colors[idx % colors.length];
+    const on = Math.sin(time * 2.5 + idx * 1.7) > -0.2;
+
+    ctx.save();
+    ctx.globalAlpha = on ? 1.0 : 0.25;
+
+    // Short wire drop
+    r(ctx, '#2a1a0a', x - 1, wireY, 2, 5);
+
+    // Glow halo when lit
+    if (on) {
+      const glow = ctx.createRadialGradient(x, wireY + 10, 0, x, wireY + 10, 10);
+      glow.addColorStop(0, color + 'aa');
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - 10, wireY, 20, 20);
+    }
+
+    // Bulb body
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, wireY + 10, 4, 0, Math.PI * 2);
+    ctx.fill();
+    // Bulb cap
+    r(ctx, '#aaaaaa', x - 2, wireY + 4, 4, 3);
+
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+// ── Pumpkin (October) ─────────────────────────────────────────────────────────
+// Sits on the left end of the desk surface
+function drawPumpkin(ctx: CanvasRenderingContext2D) {
+  const px = 7 * P + 36, py = 7 * P + 6;
+
+  // Stem
+  r(ctx, '#4a7a20', px + 9, py - 7, 4, 9);
+  r(ctx, '#3a6010', px + 8, py - 5, 2, 6);
+
+  // Three lobes
+  r(ctx, '#e06020', px,      py, 8,  18); // left lobe
+  r(ctx, '#e86828', px + 7,  py - 2, 10, 20); // centre lobe (taller)
+  r(ctx, '#e06020', px + 16, py, 8,  18); // right lobe
+
+  // Highlights
+  r(ctx, '#f07838', px + 1,  py + 1, 4, 4);
+  r(ctx, '#f07838', px + 8,  py - 1, 5, 4);
+  r(ctx, '#f07838', px + 17, py + 1, 4, 4);
+
+  // Shadow seams
+  r(ctx, '#b04010', px + 7,  py, 2, 18);
+  r(ctx, '#b04010', px + 15, py, 2, 18);
+
+  // Jack-o-lantern face
+  r(ctx, '#1e1e2e', px + 2,  py + 5,  4, 3);  // left eye
+  r(ctx, '#1e1e2e', px + 18, py + 5,  4, 3);  // right eye (centre lobe)
+  r(ctx, '#1e1e2e', px + 8,  py + 11, 8, 2);  // mouth top
+  r(ctx, '#1e1e2e', px + 8,  py + 13, 2, 3);  // left tooth gap
+  r(ctx, '#1e1e2e', px + 14, py + 13, 2, 3);  // right tooth gap
+  r(ctx, '#e06020', px + 10, py + 13, 4, 3);  // tooth fill (pumpkin colour)
+}
+
+// ── Cherry blossoms (April) ───────────────────────────────────────────────────
+// Pink petals drifting slowly down across the window area
+function drawCherryBlossoms(ctx: CanvasRenderingContext2D, time: number) {
+  const petals: Array<{ tx: number; yBase: number; speed: number; phase: number }> = [
+    { tx: 2.8, yBase: 0.2, speed: 0.30, phase: 0.0 },
+    { tx: 4.2, yBase: 0.0, speed: 0.22, phase: 1.3 },
+    { tx: 5.6, yBase: 0.5, speed: 0.38, phase: 0.8 },
+    { tx: 6.4, yBase: 0.1, speed: 0.28, phase: 2.2 },
+    { tx: 7.8, yBase: 0.3, speed: 0.34, phase: 1.7 },
+    { tx: 3.5, yBase: 0.7, speed: 0.26, phase: 0.5 },
+    { tx: 5.0, yBase: 0.0, speed: 0.40, phase: 2.9 },
+    { tx: 8.3, yBase: 0.4, speed: 0.32, phase: 1.1 },
+    { tx: 4.8, yBase: 0.9, speed: 0.20, phase: 3.4 },
+    { tx: 7.1, yBase: 0.2, speed: 0.36, phase: 0.3 },
+  ];
+
+  ctx.save();
+  for (const p of petals) {
+    const cycle = 2.8;
+    const drift = ((time * p.speed + p.phase) % cycle);
+    const px = p.tx * P + Math.sin(time * 0.7 + p.phase) * 7;
+    const py = (p.yBase + drift) * P;
+    const alpha = drift < cycle - 0.5 ? 0.85 : Math.max(0, 0.85 * (cycle - drift) / 0.5);
+    const angle = Math.sin(time * 1.2 + p.phase) * 0.5;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(Math.round(px), Math.round(py));
+    ctx.rotate(angle);
+
+    // 5-petal blossom using small rects
+    r(ctx, '#ffc8d8', -4, -1, 3, 3); // left
+    r(ctx, '#ffc8d8',  1, -1, 3, 3); // right
+    r(ctx, '#ffc8d8', -1, -4, 3, 3); // top
+    r(ctx, '#ffc8d8', -1,  1, 3, 3); // bottom
+    r(ctx, '#ffb0c8', -2, -2, 4, 4); // centre
+    r(ctx, '#ff80a8', -1, -1, 2, 2); // stamen dot
+
+    ctx.restore();
+  }
+  ctx.restore();
 }
 
 // ── Plant ─────────────────────────────────────────────────────────────────────

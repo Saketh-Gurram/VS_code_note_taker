@@ -103,9 +103,11 @@ export function App() {
         {openNote ? (
           <NoteEditor
             note={openNote}
+            notes={state.notes}
             pendingRef={state.pendingRef}
             onClose={() => dispatch({ type: 'CLOSE_NOTE' })}
             onSave={(note) => { dispatch({ type: 'SAVE_NOTE', note }); setSavedAt(Date.now()); }}
+            onOpenNote={(id) => dispatch({ type: 'OPEN_NOTE', id })}
           />
         ) : (
           <NoteList
