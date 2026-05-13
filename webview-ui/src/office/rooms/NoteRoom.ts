@@ -6,6 +6,22 @@ import {
 import { getNoteRoomDecorations } from '../decorations';
 import type { TileMap, FurnitureSprite, RenderScene } from '../engine/renderer';
 
+export interface EggState {
+  coffeeBoost: number;   // scribe types faster (5s)
+  coffeeSpark: number;   // ⚡ float above mug (1.5s)
+  catMeow: number;       // meow bubble (2.5s)
+  catSpin: number;       // cat spins (1s)
+  matrix: number;        // monitor goes Matrix (3s)
+  plantWiggle: number;   // plant bounces (1.5s)
+  disco: number;         // disco floor (8s)
+  clockLook: number;     // all chars look right at clock (2s)
+  fivePM: number;        // end-of-day mode (30s)
+  npcBook: number;       // NPC heads to bookshelf to read (14s)
+  bigConfetti: number;   // milestone celebration (3s)
+  sudo: number;          // root access bubble (3s)
+  hello: number;         // NPCs wave (3s)
+}
+
 // 0=void  1=floor  2=wall
 function buildTileMap(): TileMap {
   const tiles: number[] = [];
@@ -63,6 +79,7 @@ export interface NoteRoomState {
   isEditing: boolean;
   time: number;
   celebrateTimer: number;
+  eggs: EggState;
 }
 
 export function createNoteRoom(): NoteRoomState {
@@ -86,6 +103,11 @@ export function createNoteRoom(): NoteRoomState {
     isEditing: false,
     time: 0,
     celebrateTimer: 0,
+    eggs: {
+      coffeeBoost:0, coffeeSpark:0, catMeow:0, catSpin:0, matrix:0,
+      plantWiggle:0, disco:0, clockLook:0, fivePM:0, npcBook:0,
+      bigConfetti:0, sudo:0, hello:0,
+    },
   };
 }
 
@@ -206,12 +228,67 @@ function updateSmartWanderer(
   updateChar(w, dt);
 }
 
+export function eggCoffeeMug(s: NoteRoomState)  { s.eggs.coffeeBoost=5; s.eggs.coffeeSpark=1.5; }
+export function eggCatClick(s: NoteRoomState)   { s.eggs.catMeow=2.5; s.eggs.catSpin=1.0; }
+export function eggMonitor(s: NoteRoomState)    { s.eggs.matrix=3.0; }
+export function eggPlant(s: NoteRoomState)      { s.eggs.plantWiggle=1.5; }
+export function eggBookshelf(s: NoteRoomState)  {
+  s.eggs.npcBook=14.0;
+  // Force wanderer 0 to walk to bookshelf reading spot
+  const w = s.wanderers[0];
+  const tx = 15 * TILE_SIZE, ty = 1.5 * TILE_SIZE;
+  const dx = tx - w.x, dy = ty - w.y;
+  w.targetX = tx; w.targetY = ty; w.waitTimer = 0; w.mode = 'wander';
+  const dir: Direction = Math.abs(dx) >= Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up');
+  setCharAnim(w, 'walk', dir);
+}
+export function eggKonami(s: NoteRoomState)     { s.eggs.disco=8.0; }
+export function eggSudo(s: NoteRoomState)       { s.eggs.sudo=3.0; }
+export function eggHello(s: NoteRoomState)      { s.eggs.hello=3.0; }
+export function eggMilestone(s: NoteRoomState)  { s.eggs.bigConfetti=3.0; }
+
 export function updateNoteRoom(state: NoteRoomState, dt: number): void {
   state.time += dt;
   updateChar(state.character, dt);
   for (const w of state.wanderers) updateSmartWanderer(w, dt);
   updateWanderer(state.cat, dt, CAT_WAYPOINTS);
   if (state.celebrateTimer > 0) state.celebrateTimer -= dt;
+
+  // Decrement egg timers
+  const e = state.eggs;
+  if (e.coffeeBoost  > 0) e.coffeeBoost  -= dt;
+  if (e.coffeeSpark  > 0) e.coffeeSpark  -= dt;
+  if (e.catMeow      > 0) e.catMeow      -= dt;
+  if (e.catSpin      > 0) e.catSpin      -= dt;
+  if (e.matrix       > 0) e.matrix       -= dt;
+  if (e.plantWiggle  > 0) e.plantWiggle  -= dt;
+  if (e.disco        > 0) e.disco        -= dt;
+  if (e.clockLook    > 0) e.clockLook    -= dt;
+  if (e.fivePM       > 0) e.fivePM       -= dt;
+  if (e.npcBook      > 0) e.npcBook      -= dt;
+  if (e.bigConfetti  > 0) e.bigConfetti  -= dt;
+  if (e.sudo         > 0) e.sudo         -= dt;
+  if (e.hello        > 0) e.hello        -= dt;
+
+  // During hello: all characters face right then idle
+  if (e.hello > 0) {
+    for (const w of state.wanderers) setCharAnim(w, 'idle', 'right');
+  }
+  // During clockLook: all chars look right (clock is on right wall)
+  if (e.clockLook > 0) {
+    setCharAnim(state.character, 'idle', 'right');
+    for (const w of state.wanderers) setCharAnim(w, 'idle', 'right');
+  }
+
+  // Time-based: clock strikes 12, fire once per event
+  const now2 = new Date();
+  const rh2 = now2.getHours(), rm2 = now2.getMinutes(), rs2 = now2.getSeconds();
+  if ((rh2 === 0 || rh2 === 12) && rm2 === 0 && rs2 < 2 && e.clockLook <= 0) {
+    e.clockLook = 2.0;
+  }
+  if (rh2 === 17 && rm2 === 0 && rs2 < 2 && e.fivePM <= 0) {
+    e.fivePM = 30.0;
+  }
 }
 
 export function setEditing(state: NoteRoomState, editing: boolean): void {
@@ -232,8 +309,12 @@ export function noteRoomScene(
     charImages,
     floorColor: THEME.FLOOR1,
     wallColor: THEME.WALL,
-    decorations: getNoteRoomDecorations(state.time),
+    decorations: getNoteRoomDecorations(state.time, {
+      plantWiggle: state.eggs.plantWiggle,
+      matrixMode: state.eggs.matrix > 0,
+    }),
     time: state.time,
     celebrateTimer: state.celebrateTimer,
+    eggs: state.eggs,
   };
 }

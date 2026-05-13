@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useState } from 'react';
+import { useReducer, useEffect, useState, useRef } from 'react';
 import type { Note, AIStatus, HostToWebviewMsg, CodeRef } from './types';
 import { postMessage, onMessage, getState, setState } from './vscodeApi';
 import { OfficeCanvas } from './components/OfficeCanvas';
@@ -69,6 +69,8 @@ export function App() {
   const saved = getState<AppState>();
   const [state, dispatch] = useReducer(reducer, saved ?? INITIAL);
   const [savedAt, setSavedAt] = useState(0);
+  const [milestoneCount, setMilestoneCount] = useState(0);
+  const prevNoteCountRef = useRef(0);
 
   useEffect(() => { setState(state); }, [state]);
 
@@ -97,7 +99,12 @@ export function App() {
   return (
     <div className="app">
       <div className="canvas-wrapper">
-        <OfficeCanvas isEditing={!!openNote} savedAt={savedAt} />
+        <OfficeCanvas
+          isEditing={!!openNote}
+          savedAt={savedAt}
+          noteTitle={openNote?.title}
+          milestoneCount={milestoneCount}
+        />
       </div>
       <div className="overlay">
         {openNote ? (
@@ -106,7 +113,17 @@ export function App() {
             notes={state.notes}
             pendingRef={state.pendingRef}
             onClose={() => dispatch({ type: 'CLOSE_NOTE' })}
-            onSave={(note) => { dispatch({ type: 'SAVE_NOTE', note }); setSavedAt(Date.now()); }}
+            onSave={(note) => {
+              dispatch({ type: 'SAVE_NOTE', note });
+              setSavedAt(Date.now());
+              // Milestone detection
+              const count = state.notes.length;
+              const prev = prevNoteCountRef.current;
+              if ([10, 25, 50, 100].includes(count) && count !== prev) {
+                setMilestoneCount(c => c + 1);
+              }
+              prevNoteCountRef.current = count;
+            }}
             onOpenNote={(id) => dispatch({ type: 'OPEN_NOTE', id })}
           />
         ) : (

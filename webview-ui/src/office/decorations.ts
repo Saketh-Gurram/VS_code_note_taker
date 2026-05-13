@@ -14,7 +14,7 @@ export interface Decoration {
 
 // Character at row 10 has zY = (10.5×16×3) + 36 = 540.
 // Desk, monitor, lamp, mug, desk front, chair all draw BEFORE character (zY < 540).
-export function getNoteRoomDecorations(time: number): Decoration[] {
+export function getNoteRoomDecorations(time: number, opts: { plantWiggle?: number; matrixMode?: boolean } = {}): Decoration[] {
   const now = new Date();
   const realHour = now.getHours();
   const realMin = now.getMinutes();
@@ -34,13 +34,13 @@ export function getNoteRoomDecorations(time: number): Decoration[] {
     { zY: P * 4.8,  draw: (c) => drawSofaRight(c) },
     { zY: P * 5.5,  draw: (c) => drawDeskSurface(c) },
     ...(month === 9  ? [{ zY: P * 5.51, draw: (c: CanvasRenderingContext2D) => drawPumpkin(c) }] : []),
-    { zY: P * 5.6,  draw: (c) => drawMonitor(c, time) },
+    { zY: P * 5.6,  draw: (c) => drawMonitor(c, time, opts.matrixMode ?? false) },
     { zY: P * 5.7,  draw: (c) => drawLamp(c) },
     { zY: P * 5.8,  draw: (c) => drawCoffeeMug(c, time) },
     { zY: P * 9.5,  draw: (c) => drawDeskFront(c) },
     { zY: P * 9.8,  draw: (c) => drawChair(c) },
     // ── character renders here at zY ≈ 540 ──
-    { zY: P * 11.5, draw: (c) => drawPlant(c) },
+    { zY: P * 11.5, draw: (c) => drawPlant(c, opts.plantWiggle ?? 0) },
   ];
 }
 
@@ -442,7 +442,7 @@ function drawDeskFront(ctx: CanvasRenderingContext2D) {
 
 // ── Monitor ───────────────────────────────────────────────────────────────────
 // Position: cols 9–11, rows 5–7  →  x=432, y=240, w=96, h=144
-function drawMonitor(ctx: CanvasRenderingContext2D, time: number) {
+function drawMonitor(ctx: CanvasRenderingContext2D, time: number, matrixMode: boolean = false) {
   const mx = 9 * P + 8, my = 5 * P + 4, mw = 2 * P - 16, mh = 2 * P - 8;
   const bezel = 5;
 
@@ -478,6 +478,26 @@ function drawMonitor(ctx: CanvasRenderingContext2D, time: number) {
   ctx.fillStyle = glow;
   ctx.fillRect(mx - P, my - P / 2, mw + P * 2, mh + P);
   ctx.restore();
+
+  if (matrixMode) {
+    // Cover screen with dark green bg
+    ctx.fillStyle = '#001400';
+    ctx.fillRect(mx + bezel, my + bezel, mw - bezel*2, mh - bezel*2 - 8);
+    // Falling green characters
+    const matChars = ['0','1','ア','ウ','カ','タ','ナ'];
+    ctx.font = `bold 8px monospace`;
+    ctx.fillStyle = '#00ff44';
+    ctx.textAlign = 'left';
+    for (let col2 = 0; col2 < 6; col2++) {
+      for (let row2 = 0; row2 < 4; row2++) {
+        const ch = matChars[(Math.floor(time * 8 + col2 * 3 + row2) % matChars.length)];
+        const alpha = 0.4 + ((time * 3 + col2 + row2) % 1) * 0.6;
+        ctx.globalAlpha = alpha;
+        ctx.fillText(ch, mx + bezel + 4 + col2 * 12, my + bezel + 10 + row2 * 11);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
 
   // Stand
   r(ctx, '#2a2a3a', mx + mw / 2 - 10, my + mh - 2, 20, 16);
@@ -695,8 +715,9 @@ function drawCherryBlossoms(ctx: CanvasRenderingContext2D, time: number) {
 
 // ── Plant ─────────────────────────────────────────────────────────────────────
 // Position: cols 18–19, rows 10–12  →  x=864, y=480
-function drawPlant(ctx: CanvasRenderingContext2D) {
-  const px4 = 18 * P + 4, py4 = 10 * P;
+function drawPlant(ctx: CanvasRenderingContext2D, wiggle = 0) {
+  const wOff = Math.round(Math.sin(wiggle * Math.PI * 4) * (wiggle > 0 ? 4 : 0));
+  const px4 = 18 * P + 4 + wOff, py4 = 10 * P;
 
   // Pot
   const potX = px4 + 8, potY = py4 + P * 2 - 26, potW = 36, potH = 28;
