@@ -384,9 +384,10 @@ function drawCharacter(
     const P = 4;
     const cx = Math.round(char.x * SCALE);
     const cy = Math.round(char.y * SCALE - 17 * P);
-    const isTyping = char.anim === 'type';
-    const facingUp = char.dir === 'up';
-    const walkFrame = char.frame % 2; // 0 or 1 for leg alternation
+    const isTyping  = char.anim === 'type';
+    const isReading = char.anim === 'read';
+    const facingUp  = char.dir === 'up';
+    const walkFrame = char.frame % 2;
     const skin  = CHAR_SKIN [char.spriteIndex % CHAR_SKIN.length];
     const shirt = CHAR_SHIRT[char.spriteIndex % CHAR_SHIRT.length];
     const hair  = CHAR_HAIR [char.spriteIndex % CHAR_HAIR.length];
@@ -396,7 +397,7 @@ function drawCharacter(
       ctx.fillRect(cx + x * P, cy + y * P, w * P, h * P);
     };
 
-    // Legs — alternate for walk, static for idle/type
+    // Legs — alternate for walk, static otherwise
     if (char.anim === 'walk') {
       px(-2, 11, 2, 5, walkFrame === 0 ? '#45475a' : '#2a2c3a');
       px( 1, 11, 2, 5, walkFrame === 0 ? '#2a2c3a' : '#45475a');
@@ -411,9 +412,13 @@ function drawCharacter(
 
     px(-3, 5, 7, 7, shirt); // body
 
-    // Arms
+    // Arms — raised when reading, bent when typing, dangling otherwise
     if (isTyping) {
       px(-5, 5, 2, 5, skin); px( 4, 5, 2, 5, skin);
+    } else if (isReading) {
+      // Arms bent upward to cradle a book
+      px(-5, 3, 2, 5, skin); px(-5, 7, 3, 2, skin); // left arm + forearm
+      px( 4, 3, 2, 5, skin); px( 3, 7, 3, 2, skin); // right arm + forearm
     } else {
       px(-5, 5, 2, 6, skin); px(-5, 10, 2, 2, skin);
       px( 4, 5, 2, 6, skin); px( 4, 10, 2, 2, skin);
@@ -426,10 +431,38 @@ function drawCharacter(
     if (!facingUp) {
       px(-2, 2, 2, 2, '#1e1e2e'); px( 1, 2, 2, 2, '#1e1e2e'); // eyes
       px(-1, 2, 1, 1, '#cdd6f4'); px( 2, 2, 1, 1, '#cdd6f4'); // shine
-      px(-1, 5, 3, 1, isTyping ? '#1e1e2e' : '#c68642');       // mouth
+      px(-1, 5, 3, 1, (isTyping || isReading) ? '#1e1e2e' : '#c68642'); // mouth
     } else {
       px(-2, 1, 5, 3, hair); // back of head
     }
+  }
+
+  // ── Book prop — drawn whenever anim === 'read', over PNG or canvas fallback ──
+  if (char.anim === 'read') {
+    const bookColors = ['#c43028','#2848c4','#28a840','#c89820','#a828c4','#28a8c4'];
+    const coverCol   = bookColors[char.spriteIndex % bookColors.length];
+    // Centre the book on the character, place it at chest / arm height
+    const bW = 18, bH = 22;
+    const bX = Math.round(char.x * SCALE) - Math.round(bW / 2);
+    const bY = dy + Math.round(dh * 0.18);
+
+    ctx.save();
+    // Cover
+    ctx.fillStyle = coverCol;
+    ctx.fillRect(bX, bY, bW, bH);
+    // Spine (darker left edge)
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(bX, bY, 3, bH);
+    // Top highlight strip
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fillRect(bX + 3, bY, bW - 3, 3);
+    // Pages (cream right edge — book is open / held toward viewer)
+    ctx.fillStyle = '#f0ece0';
+    ctx.fillRect(bX + bW, bY + 2, 3, bH - 2);
+    // Inner page line (gives it depth)
+    ctx.fillStyle = '#d8d0c0';
+    ctx.fillRect(bX + bW + 1, bY + 3, 1, bH - 4);
+    ctx.restore();
   }
 
   if (char.label) {
