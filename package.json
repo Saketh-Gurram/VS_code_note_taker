@@ -1,12 +1,25 @@
 {
   "name": "pixel-notes",
   "displayName": "PixelNotes",
-  "description": "A pixel-art note-taking workspace for your code",
-  "version": "0.0.1",
-  "publisher": "pixel-notes",
-  "engines": { "vscode": "^1.100.0" },
+  "description": "A pixel-art retro office note-taking sidebar for VS Code — write notes, attach code references, and send to AI.",
+  "version": "1.0.0",
+  "publisher": "SakethGurram",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Saketh-Gurram/VS_code_note_taker.git"
+  },
+  "homepage": "https://github.com/Saketh-Gurram/VS_code_note_taker",
+  "bugs": {
+    "url": "https://github.com/Saketh-Gurram/VS_code_note_taker/issues"
+  },
+  "engines": { "vscode": "^1.85.0" },
   "extensionKind": ["ui"],
-  "categories": ["Other"],
+  "categories": ["Other", "Notebooks"],
+  "keywords": ["notes", "pixel-art", "notepad", "todo", "ai"],
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
@@ -68,7 +81,8 @@
     "watch:ext": "node esbuild.mjs --watch",
     "watch:webview": "cd webview-ui && npm run dev",
     "watch": "concurrently \"npm run watch:ext\" \"npm run watch:webview\"",
-    "package": "node esbuild.mjs --production && cd webview-ui && npx vite build && npx vsce package",
+    "package": "npm run build && npx vsce package",
+    "publish": "npm run build && npx vsce publish",
     "vscode:prepublish": "npm run build"
   },
   "devDependencies": {
