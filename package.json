@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/Saketh-Gurram/VS_code_note_taker/issues"
   },
-  "engines": { "vscode": "^1.85.0" },
+  "engines": { "vscode": "^1.100.0" },
   "extensionKind": ["ui"],
   "categories": ["Other", "Notebooks"],
   "keywords": ["notes", "pixel-art", "notepad", "todo", "ai"],
