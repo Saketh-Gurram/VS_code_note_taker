@@ -16,6 +16,7 @@
   "extensionKind": ["ui"],
   "categories": ["Other", "Notebooks"],
   "keywords": ["notes", "pixel-art", "notepad", "todo", "ai"],
+  "icon": "assets/icon.png",
   "galleryBanner": {
     "color": "#1e1e2e",
     "theme": "dark"
