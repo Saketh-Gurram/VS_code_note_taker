@@ -2,7 +2,7 @@
   "name": "pixel-notes",
   "displayName": "PixelNotes",
   "description": "A pixel-art retro office note-taking sidebar for VS Code — write notes, attach code references, and send to AI.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "Sakethg",
   "repository": {
     "type": "git",
@@ -56,6 +56,10 @@
       {
         "command": "pixelNotes.sendToAI",
         "title": "PixelNotes: Send Active Note to AI"
+      },
+      {
+        "command": "pixelNotes.generateFromSelection",
+        "title": "PixelNotes: Explain Selection with AI & Create Note"
       }
     ],
     "menus": {
@@ -64,6 +68,11 @@
           "command": "pixelNotes.pickCodeRef",
           "group": "pixelNotes@1",
           "when": "editorFocus"
+        },
+        {
+          "command": "pixelNotes.generateFromSelection",
+          "group": "pixelNotes@2",
+          "when": "editorHasSelection"
         }
       ],
       "view/title": [

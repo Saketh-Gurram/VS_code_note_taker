@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useState, useRef } from 'react';
+import { useReducer, useEffect, useState, useRef, useCallback } from 'react';
 import type { Note, AIStatus, HostToWebviewMsg, CodeRef } from './types';
 import { postMessage, onMessage, getState, setState } from './vscodeApi';
 import { OfficeCanvas } from './components/OfficeCanvas';
@@ -22,10 +22,10 @@ type Action =
   | { type: 'SAVE_NOTE'; note: Note };
 
 const TEMPLATES: Record<string, { title: string; body: string; tags: string[] }> = {
-  bug: { title: 'Bug Report', body: '## Bug\n\n## Steps to Reproduce\n1. \n\n## Expected\n\n## Actual\n', tags: ['bug'] },
-  task: { title: 'Task List', body: '## Tasks\n- [ ] \n- [ ] \n- [ ] \n', tags: ['tasks'] },
-  meeting: { title: 'Meeting Notes', body: '## Attendees\n\n## Agenda\n\n## Notes\n\n## Action Items\n', tags: ['meeting'] },
-  research: { title: 'Research', body: '## Topic\n\n## Findings\n\n## Links\n', tags: ['research'] },
+  bug:      { title: 'Bug Report',     body: '## Bug\n\n## Steps to Reproduce\n1. \n\n## Expected\n\n## Actual\n', tags: ['bug'] },
+  task:     { title: 'Task List',      body: '## Tasks\n- [ ] \n- [ ] \n- [ ] \n', tags: ['tasks'] },
+  meeting:  { title: 'Meeting Notes',  body: '## Attendees\n\n## Agenda\n\n## Notes\n\n## Action Items\n', tags: ['meeting'] },
+  research: { title: 'Research',       body: '## Topic\n\n## Findings\n\n## Links\n', tags: ['research'] },
 };
 
 function makeNewNote(templateKey?: string): Note {
@@ -33,10 +33,10 @@ function makeNewNote(templateKey?: string): Note {
   const tpl = templateKey ? TEMPLATES[templateKey] : undefined;
   return {
     id: crypto.randomUUID(),
-    title: tpl ? tpl.title : 'New Note',
-    body: tpl ? tpl.body : '',
-    codeRefs: [],
-    tags: tpl ? tpl.tags : [],
+    title:     tpl ? tpl.title : 'New Note',
+    body:      tpl ? tpl.body  : '',
+    codeRefs:  [],
+    tags:      tpl ? tpl.tags  : [],
     createdAt: now,
     updatedAt: now,
   };
@@ -44,22 +44,14 @@ function makeNewNote(templateKey?: string): Note {
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case 'INIT':
-      return { ...state, notes: action.notes };
-    case 'SET_NOTES':
-      return { ...state, notes: action.notes };
-    case 'OPEN_NOTE':
-      return { ...state, openNoteId: action.id, pendingRef: undefined };
-    case 'CLOSE_NOTE':
-      return { ...state, openNoteId: null, pendingRef: undefined };
-    case 'NEW_NOTE':
-      return { ...state, notes: [action.note, ...state.notes], openNoteId: action.note.id, pendingRef: undefined };
-    case 'CODE_REF_PICKED':
-      return { ...state, pendingRef: action.ref };
-    case 'SAVE_NOTE':
-      return { ...state, notes: state.notes.map(n => n.id === action.note.id ? action.note : n) };
-    default:
-      return state;
+    case 'INIT':           return { ...state, notes: action.notes };
+    case 'SET_NOTES':      return { ...state, notes: action.notes };
+    case 'OPEN_NOTE':      return { ...state, openNoteId: action.id, pendingRef: undefined };
+    case 'CLOSE_NOTE':     return { ...state, openNoteId: null, pendingRef: undefined };
+    case 'NEW_NOTE':       return { ...state, notes: [action.note, ...state.notes], openNoteId: action.note.id, pendingRef: undefined };
+    case 'CODE_REF_PICKED':return { ...state, pendingRef: action.ref };
+    case 'SAVE_NOTE':      return { ...state, notes: state.notes.map(n => n.id === action.note.id ? action.note : n) };
+    default:               return state;
   }
 }
 
@@ -67,9 +59,13 @@ const INITIAL: AppState = { notes: [], aiStatus: 'idle', openNoteId: null };
 
 export function App() {
   const saved = getState<AppState>();
-  const [state, dispatch] = useReducer(reducer, saved ?? INITIAL);
-  const [savedAt, setSavedAt] = useState(0);
+  const [state, dispatch]       = useReducer(reducer, saved ?? INITIAL);
+  const [savedAt, setSavedAt]   = useState(0);
   const [milestoneCount, setMilestoneCount] = useState(0);
+  const [streak, setStreak]     = useState(0);
+  const [typingWpm, setTypingWpm] = useState(0);
+  const [snakeMode, setSnakeMode] = useState(false);
+
   const prevNoteCountRef = useRef(0);
 
   useEffect(() => { setState(state); }, [state]);
@@ -77,9 +73,16 @@ export function App() {
   useEffect(() => {
     const off = onMessage((msg: HostToWebviewMsg) => {
       switch (msg.type) {
-        case 'INIT':      dispatch({ type: 'INIT', notes: msg.notes }); break;
-        case 'NOTES_UPDATED': dispatch({ type: 'SET_NOTES', notes: msg.notes }); break;
-        case 'CODE_REF_PICKED': dispatch({ type: 'CODE_REF_PICKED', ref: msg.ref }); break;
+        case 'INIT':
+          dispatch({ type: 'INIT', notes: msg.notes });
+          setStreak(msg.streak ?? 0);
+          break;
+        case 'NOTES_UPDATED':
+          dispatch({ type: 'SET_NOTES', notes: msg.notes });
+          break;
+        case 'CODE_REF_PICKED':
+          dispatch({ type: 'CODE_REF_PICKED', ref: msg.ref });
+          break;
       }
     });
     postMessage({ type: 'READY' });
@@ -90,11 +93,27 @@ export function App() {
     ? state.notes.find(n => n.id === state.openNoteId)
     : null;
 
+  // Snake: activate when open note title === 'snake'
+  useEffect(() => {
+    const title = openNote?.title?.trim().toLowerCase() ?? '';
+    setSnakeMode(title === 'snake');
+  }, [openNote?.title]);
+
   function newNote(templateKey?: string) {
     const note = makeNewNote(templateKey);
     postMessage({ type: 'SAVE_NOTE', note });
     dispatch({ type: 'NEW_NOTE', note });
   }
+
+  function handleTogglePin(note: Note) {
+    const updated = { ...note, pinned: !note.pinned, updatedAt: Date.now() };
+    dispatch({ type: 'SAVE_NOTE', note: updated });
+    postMessage({ type: 'SAVE_NOTE', note: updated });
+  }
+
+  const handleTypingSpeed = useCallback((wpm: number) => {
+    setTypingWpm(wpm);
+  }, []);
 
   return (
     <div className="app">
@@ -104,6 +123,9 @@ export function App() {
           savedAt={savedAt}
           noteTitle={openNote?.title}
           milestoneCount={milestoneCount}
+          typingWpm={typingWpm}
+          snakeMode={snakeMode}
+          onExitSnake={() => setSnakeMode(false)}
         />
       </div>
       <div className="overlay">
@@ -113,12 +135,13 @@ export function App() {
             notes={state.notes}
             pendingRef={state.pendingRef}
             onClose={() => dispatch({ type: 'CLOSE_NOTE' })}
+            onTypingSpeed={handleTypingSpeed}
             onSave={(note) => {
               dispatch({ type: 'SAVE_NOTE', note });
               setSavedAt(Date.now());
-              // Milestone detection
+              // Milestone detection (by total note count)
               const count = state.notes.length;
-              const prev = prevNoteCountRef.current;
+              const prev  = prevNoteCountRef.current;
               if ([10, 25, 50, 100].includes(count) && count !== prev) {
                 setMilestoneCount(c => c + 1);
               }
@@ -129,8 +152,10 @@ export function App() {
         ) : (
           <NoteList
             notes={state.notes}
+            streak={streak}
             onOpen={(n) => dispatch({ type: 'OPEN_NOTE', id: n.id })}
             onNew={newNote}
+            onTogglePin={handleTogglePin}
             templates={TEMPLATES}
           />
         )}

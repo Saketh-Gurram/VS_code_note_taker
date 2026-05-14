@@ -12,13 +12,13 @@ export function RoomSwitcher({ room, onSwitch }: Props) {
         className={`room-tab ${room === 'note' ? 'active' : ''}`}
         onClick={() => onSwitch('note')}
       >
-        📝 Notes
+        📝 Office
       </button>
       <button
-        className={`room-tab ${room === 'agent' ? 'active' : ''}`}
-        onClick={() => onSwitch('agent')}
+        className={`room-tab ${room === 'break' ? 'active' : ''}`}
+        onClick={() => onSwitch('break')}
       >
-        🤖 Agents
+        ☕ Break
       </button>
     </div>
   );

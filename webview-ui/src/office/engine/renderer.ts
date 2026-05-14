@@ -2,7 +2,7 @@ import { TILE_SIZE, SCALE, THEME } from '../../constants';
 import type { CharState } from './characters';
 import { getFrameRect, CHAR_FRAME_W, CHAR_FRAME_H } from './characters';
 import type { Decoration } from '../decorations';
-import type { EggState } from '../rooms/NoteRoom';
+import type { EggState, NpcDialogue } from '../rooms/NoteRoom';
 
 export interface TileMap {
   cols: number;
@@ -28,9 +28,10 @@ export interface RenderScene {
   floorColor: string;
   wallColor: string;
   decorations?: Decoration[];
-  time?: number; // elapsed seconds, for animated canvas characters (cat)
-  celebrateTimer?: number; // countdown for celebration sparkle effect
+  time?: number;
+  celebrateTimer?: number;
   eggs?: EggState;
+  dialogue?: NpcDialogue;
 }
 
 const PIXEL = TILE_SIZE * SCALE;
@@ -207,6 +208,62 @@ export function renderScene(ctx: CanvasRenderingContext2D, scene: RenderScene): 
       ctx.restore();
     }
   }
+
+  // NPC dialogue bubble
+  if (scene.dialogue && scene.dialogue.timer > 0) {
+    const { charIdx, text, timer } = scene.dialogue;
+    const char = characters[charIdx];
+    if (char) {
+      drawDialogueBubble(ctx, char, text, Math.min(1, timer));
+    }
+  }
+}
+
+function drawDialogueBubble(ctx: CanvasRenderingContext2D, char: CharState, text: string, alpha: number): void {
+  const lines  = text.split('\n');
+  const fSize  = Math.max(7, 2 * SCALE);
+  ctx.font     = `bold ${fSize}px "Press Start 2P", monospace`;
+  const maxW   = Math.max(...lines.map(l => ctx.measureText(l).width));
+  const padX   = 10, padY = 8;
+  const bw     = maxW + padX * 2;
+  const bh     = lines.length * (fSize + 3) + padY * 2;
+  const bx     = Math.round(char.x * SCALE - bw / 2);
+  const by     = Math.round(char.y * SCALE - CHAR_FRAME_H * SCALE * 0.8) - bh - 10;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Bubble background
+  ctx.fillStyle = '#f5e8d0';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = '#3d2010';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(bx, by, bw, bh);
+
+  // Tail pointing down
+  ctx.fillStyle = '#f5e8d0';
+  ctx.beginPath();
+  ctx.moveTo(bx + bw / 2 - 6, by + bh);
+  ctx.lineTo(bx + bw / 2 + 6, by + bh);
+  ctx.lineTo(bx + bw / 2, by + bh + 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#3d2010';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bx + bw / 2 - 6, by + bh + 1);
+  ctx.lineTo(bx + bw / 2, by + bh + 10);
+  ctx.lineTo(bx + bw / 2 + 6, by + bh + 1);
+  ctx.stroke();
+
+  // Text
+  ctx.fillStyle = '#1e1e2e';
+  ctx.textAlign = 'left';
+  lines.forEach((line, i) => {
+    ctx.fillText(line, bx + padX, by + padY + fSize + i * (fSize + 3));
+  });
+
+  ctx.restore();
 }
 
 function drawFurniture(ctx: CanvasRenderingContext2D, furn: FurnitureSprite): void {

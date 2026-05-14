@@ -34,14 +34,17 @@ function buildTileMap(): TileMap {
   return { cols: NOTE_ROOM_COLS, rows: NOTE_ROOM_ROWS, tiles };
 }
 
-// Safe floor waypoints — avoid desk (cols 7–13, rows 7–9) and walls
+// Safe floor waypoints — avoid desk (cols 7–13, rows 7–9),
+// bookshelf (cols 12–18, rows 0–2), and walls
 const WAYPOINTS: ReadonlyArray<{ x: number; y: number }> = [
   // Left open floor
   [3, 9], [4, 11], [2, 11], [3, 12], [5, 12], [2, 9], [5, 10],
   // Right open floor
   [17, 9], [18, 11], [20, 11], [19, 12], [17, 12], [20, 9], [16, 10],
-  // Top area (behind desk)
-  [2, 3], [4, 2], [6, 4], [10, 2], [14, 2], [18, 3], [20, 4],
+  // Top-left area (safely left of bookshelf, which starts at col 12)
+  [2, 3], [4, 2], [6, 4], [10, 2], [11, 3],
+  // Top-right area (safely right of bookshelf, which ends at col 18)
+  [19, 3], [20, 4], [20, 2],
   // In front of desk
   [8, 10], [10, 11], [12, 10], [9, 12], [11, 12], [13, 11],
 ].map(([tx, ty]) => ({ x: (tx + 0.5) * TILE_SIZE, y: (ty + 0.5) * TILE_SIZE }));
@@ -71,6 +74,12 @@ export interface SmartWandererState extends WandererState {
   interestSpotIdx?: number;
 }
 
+export interface NpcDialogue {
+  charIdx: number;   // index into scene.characters array
+  text: string;
+  timer: number;
+}
+
 export interface NoteRoomState {
   tileMap: TileMap;
   character: CharState;         // main scribe at desk
@@ -80,6 +89,8 @@ export interface NoteRoomState {
   time: number;
   celebrateTimer: number;
   eggs: EggState;
+  typingWpm: number;
+  dialogue?: NpcDialogue;
 }
 
 export function createNoteRoom(): NoteRoomState {
@@ -108,47 +119,48 @@ export function createNoteRoom(): NoteRoomState {
       plantWiggle:0, disco:0, clockLook:0, fivePM:0, npcBook:0,
       bigConfetti:0, sudo:0, hello:0,
     },
+    typingWpm: 0,
+    dialogue: undefined,
   };
 }
 
 // Walk speed for smart wanderer (px/s)
 const SMART_WALK_SPEED = 28;
 
-// Desk obstacle in world-pixel space — only the solid desk body (rows 7–8.5).
-// Row 9+ is the open floor in front of the desk where walking is fine.
-const DESK_OBS = {
-  x1: 7  * TILE_SIZE + 2,   //  114
-  x2: 13 * TILE_SIZE - 2,   //  206
-  y1: 7  * TILE_SIZE,        //  112
-  y2: 8.5 * TILE_SIZE,       //  136  (stops before the desk front-face strip)
-};
+// Solid obstacles in world-pixel space that NPCs must not walk through.
+const OBSTACLES = [
+  // Desk body (rows 7–8.5) — row 9+ is open floor in front
+  { x1: 7  * TILE_SIZE + 2,  x2: 13 * TILE_SIZE - 2, y1: 7   * TILE_SIZE, y2: 8.5 * TILE_SIZE },
+  // Bookshelf (cols 12–18, rows 0–2) — wall-mounted, completely impassable
+  { x1: 12 * TILE_SIZE,      x2: 18 * TILE_SIZE,      y1: 0,               y2: 3   * TILE_SIZE },
+];
 
-/** Returns true if the straight path from (ax,ay)→(bx,by) passes through the desk. */
+/** Returns true if the straight path from (ax,ay)→(bx,by) passes through any obstacle. */
 function pathCrossesDesk(ax: number, ay: number, bx: number, by: number): boolean {
-  const { x1, x2, y1, y2 } = DESK_OBS;
-  const dx = bx - ax, dy = by - ay;
-  let tMin = 0, tMax = 1;
+  for (const { x1, x2, y1, y2 } of OBSTACLES) {
+    const dx = bx - ax, dy = by - ay;
+    let tMin = 0, tMax = 1;
 
-  // Clip against x slab
-  if (Math.abs(dx) < 0.001) {
-    if (ax < x1 || ax > x2) return false;
-  } else {
-    const t1 = (x1 - ax) / dx, t2 = (x2 - ax) / dx;
-    tMin = Math.max(tMin, Math.min(t1, t2));
-    tMax = Math.min(tMax, Math.max(t1, t2));
-    if (tMin > tMax) return false;
+    if (Math.abs(dx) < 0.001) {
+      if (ax < x1 || ax > x2) continue;
+    } else {
+      const t1 = (x1 - ax) / dx, t2 = (x2 - ax) / dx;
+      tMin = Math.max(tMin, Math.min(t1, t2));
+      tMax = Math.min(tMax, Math.max(t1, t2));
+      if (tMin > tMax) continue;
+    }
+
+    if (Math.abs(dy) < 0.001) {
+      if (ay < y1 || ay > y2) continue;
+    } else {
+      const t3 = (y1 - ay) / dy, t4 = (y2 - ay) / dy;
+      tMin = Math.max(tMin, Math.min(t3, t4));
+      tMax = Math.min(tMax, Math.max(t3, t4));
+    }
+
+    if (tMin <= tMax) return true;
   }
-
-  // Clip against y slab
-  if (Math.abs(dy) < 0.001) {
-    if (ay < y1 || ay > y2) return false;
-  } else {
-    const t3 = (y1 - ay) / dy, t4 = (y2 - ay) / dy;
-    tMin = Math.max(tMin, Math.min(t3, t4));
-    tMax = Math.min(tMax, Math.max(t3, t4));
-  }
-
-  return tMin <= tMax;
+  return false;
 }
 
 function pickTarget(w: SmartWandererState, toX: number, toY: number): void {
@@ -247,12 +259,49 @@ export function eggSudo(s: NoteRoomState)       { s.eggs.sudo=3.0; }
 export function eggHello(s: NoteRoomState)      { s.eggs.hello=3.0; }
 export function eggMilestone(s: NoteRoomState)  { s.eggs.bigConfetti=3.0; }
 
+const NPC_QUOTES = [
+  "It works on\nmy machine!",
+  "Have you tried\nturning it off?",
+  "99 bugs in\nthe code...",
+  "This is fine.",
+  "Fix it later,\nship it now",
+  "undefined is\nnot a function",
+  "Just one more\nfeature...",
+  "git push -f\nshould be ok",
+  "Stack Overflow\nto the rescue!",
+  "It's not a bug,\nit's a feature",
+  "Works in prod?\nShip it!",
+  "Have you tried\ncleaning cache?",
+];
+
+export function eggNpcClick(s: NoteRoomState, wandererIdx: number): void {
+  const quote = NPC_QUOTES[Math.floor(Math.random() * NPC_QUOTES.length)];
+  // charIdx: 0=scribe, 1=wanderer0, 2=wanderer1, 3=cat
+  s.dialogue = { charIdx: wandererIdx + 1, text: quote, timer: 3.5 };
+}
+
+export function setTypingSpeed(s: NoteRoomState, wpm: number): void {
+  s.typingWpm = wpm;
+}
+
 export function updateNoteRoom(state: NoteRoomState, dt: number): void {
   state.time += dt;
-  updateChar(state.character, dt);
+
+  // Typing speed multiplier — make scribe animate faster when user types fast
+  const wpmMult = state.isEditing
+    ? (state.typingWpm > 120 ? 3.0 : state.typingWpm > 80 ? 2.0 : state.typingWpm > 40 ? 1.5 : 1.0)
+    : 1.0;
+  updateChar(state.character, dt * wpmMult);
+
   for (const w of state.wanderers) updateSmartWanderer(w, dt);
   updateWanderer(state.cat, dt, CAT_WAYPOINTS);
   if (state.celebrateTimer > 0) state.celebrateTimer -= dt;
+
+  // Dialogue bubble timer
+  if (state.dialogue) {
+    state.dialogue.timer -= dt;
+    if (state.dialogue.timer <= 0) state.dialogue = undefined;
+  }
 
   // Decrement egg timers
   const e = state.eggs;
@@ -316,5 +365,6 @@ export function noteRoomScene(
     time: state.time,
     celebrateTimer: state.celebrateTimer,
     eggs: state.eggs,
+    dialogue: state.dialogue,
   };
 }

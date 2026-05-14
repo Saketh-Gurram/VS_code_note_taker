@@ -8,7 +8,6 @@ import { SendToAI } from './SendToAI';
 export class PixelNotesProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private activeRoom: 'note' | 'agent' = 'note';
-  private pendingPickNoteId?: string;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -27,7 +26,6 @@ export class PixelNotesProvider implements vscode.WebviewViewProvider {
     };
 
     webviewView.webview.html = this.buildHtml(webviewView.webview);
-
     webviewView.webview.onDidReceiveMessage((raw: WebviewToHostMsg) => {
       this.handleMessage(raw, webviewView);
     });
@@ -35,16 +33,19 @@ export class PixelNotesProvider implements vscode.WebviewViewProvider {
 
   private async handleMessage(msg: WebviewToHostMsg, view: vscode.WebviewView): Promise<void> {
     switch (msg.type) {
+
       case 'READY':
         this.send(view, {
           type: 'INIT',
           notes: this.storage.getAll(),
           activeRoom: this.activeRoom,
+          streak: this.storage.getStreak(),
         });
         break;
 
       case 'SAVE_NOTE':
         this.storage.upsert(msg.note);
+        this.storage.updateStreak();
         this.broadcastNotes(view);
         break;
 
@@ -54,11 +55,8 @@ export class PixelNotesProvider implements vscode.WebviewViewProvider {
         break;
 
       case 'PICK_CODE_REF': {
-        this.pendingPickNoteId = msg.noteId;
         const ref = await CodeRefPicker.pickFromActiveEditor();
-        if (ref) {
-          this.send(view, { type: 'CODE_REF_PICKED', ref });
-        }
+        if (ref) this.send(view, { type: 'CODE_REF_PICKED', ref });
         break;
       }
 
@@ -69,13 +67,46 @@ export class PixelNotesProvider implements vscode.WebviewViewProvider {
       case 'SEND_TO_AI':
         this.send(view, { type: 'AI_STATUS', status: 'processing' });
         await SendToAI.send(msg.note);
-        // Return to idle after 3 seconds
         setTimeout(() => {
-          if (this.view) {
-            this.send(this.view, { type: 'AI_STATUS', status: 'idle' });
-          }
+          if (this.view) this.send(this.view, { type: 'AI_STATUS', status: 'idle' });
         }, 3000);
         break;
+
+      case 'SUMMARIZE_NOTE': {
+        const summary = `Please summarize this note in 2–3 concise sentences:\n\n${SendToAI.format(msg.note)}`;
+        await vscode.env.clipboard.writeText(summary);
+        let opened = false;
+        for (const cmd of ['workbench.action.chat.open', 'github.copilot.chat.focus', 'workbench.panel.chat.view.copilot.focus']) {
+          try { await vscode.commands.executeCommand(cmd, { query: summary, initialPrompt: summary }); opened = true; break; } catch { /* try next */ }
+        }
+        if (!opened) vscode.window.showInformationMessage('Summarize prompt copied to clipboard.');
+        break;
+      }
+
+      case 'EXPORT_NOTE': {
+        const folders = vscode.workspace.workspaceFolders;
+        if (!folders) { vscode.window.showErrorMessage('No workspace folder open.'); break; }
+        const safeName = (msg.note.title || 'note').replace(/[^a-z0-9_\-\s]/gi, '_').trim().replace(/\s+/g, '_');
+        const defaultUri = vscode.Uri.joinPath(folders[0].uri, `${safeName}.md`);
+        const dest = await vscode.window.showSaveDialog({
+          defaultUri,
+          filters: { Markdown: ['md'], Text: ['txt'] },
+          title: 'Export Note',
+        });
+        if (!dest) break;
+        const lines: string[] = [`# ${msg.note.title || 'Untitled'}`, '', msg.note.body];
+        if (msg.note.codeRefs.length > 0) {
+          lines.push('', '## Code References');
+          for (const ref of msg.note.codeRefs) {
+            const loc = ref.line < 0 ? ref.fsPath : ref.lineEnd ? `${ref.fsPath}:${ref.line + 1}–${ref.lineEnd + 1}` : `${ref.fsPath}:${ref.line + 1}`;
+            lines.push(`- ${loc} — ${ref.lineText}`);
+          }
+        }
+        if (msg.note.tags.length > 0) lines.push('', `*Tags: ${msg.note.tags.join(', ')}*`);
+        await vscode.workspace.fs.writeFile(dest, Buffer.from(lines.join('\n'), 'utf8'));
+        vscode.window.showInformationMessage(`Note exported → ${dest.fsPath}`);
+        break;
+      }
 
       case 'SWITCH_ROOM':
         this.activeRoom = msg.room;
@@ -92,9 +123,7 @@ export class PixelNotesProvider implements vscode.WebviewViewProvider {
   }
 
   sendMessage(msg: HostToWebviewMsg): void {
-    if (this.view) {
-      this.send(this.view, msg);
-    }
+    if (this.view) this.send(this.view, msg);
   }
 
   private buildHtml(webview: vscode.Webview): string {
@@ -129,12 +158,6 @@ export class PixelNotesProvider implements vscode.WebviewViewProvider {
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
-  }
-
-  getAssetUri(webview: vscode.Webview, ...pathSegments: string[]): string {
-    return webview.asWebviewUri(
-      vscode.Uri.joinPath(this.ctx.extensionUri, 'assets', ...pathSegments)
-    ).toString();
   }
 }
 

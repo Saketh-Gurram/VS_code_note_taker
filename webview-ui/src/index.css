@@ -184,7 +184,27 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 6px;
 }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-pin {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+.btn-pin:hover  { opacity: 0.8; }
+.btn-pin.active { opacity: 1; }
 
 .note-title-input {
   width: 100%;
@@ -419,6 +439,177 @@ body {
 .linked-note-chip:hover {
   background: var(--accent);
   color: #fff;
+}
+
+/* ── Office canvas wrapper ── */
+.office-canvas-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.canvas-game-area {
+  position: relative;
+  width: 100%;
+}
+
+.game-exit-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(30, 30, 46, 0.85);
+  border: 1px solid var(--danger);
+  border-radius: 2px;
+  color: var(--danger);
+  font-family: inherit;
+  font-size: 7px;
+  padding: 4px 8px;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+  transition: background 0.15s, color 0.15s;
+  z-index: 10;
+}
+
+.game-exit-btn:hover {
+  background: var(--danger);
+  color: var(--bg);
+}
+
+/* ── Room switcher ── */
+.room-switcher {
+  display: flex;
+  gap: 0;
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+}
+
+.room-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 7px;
+  padding: 5px 6px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -2px;
+}
+
+.room-tab:hover { color: var(--text); }
+
+.room-tab.active {
+  color: var(--accent-light);
+  border-bottom-color: var(--accent-light);
+}
+
+/* ── Note list: pinned cards & header ── */
+.note-card-wrapper {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.note-card-wrapper .note-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.note-card.pinned {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--surface) 85%, var(--accent) 15%);
+}
+
+.note-card.pinned:hover {
+  background: color-mix(in srgb, var(--surface2) 85%, var(--accent) 15%);
+}
+
+.pin-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 0 5px;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.pin-btn:hover  { opacity: 0.8; border-color: var(--accent-light); }
+.pin-btn.pinned { opacity: 1;   border-color: var(--accent);       color: var(--accent-light); }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.streak-badge {
+  font-size: 7px;
+  color: var(--warning);
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* ── Checkboxes in note editor ── */
+.checkbox-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+.checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 8px;
+  color: var(--text);
+  font-family: monospace;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.checkbox-item input[type="checkbox"] {
+  accent-color: var(--accent-light);
+  margin-top: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.checkbox-item.done {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+/* ── Editor status bar ── */
+.editor-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 7px;
+  color: var(--text-dim);
+  padding: 2px 2px 0;
+}
+
+.wpm-indicator {
+  font-size: 7px;
+  color: var(--accent-light);
+  opacity: 0.8;
 }
 
 /* ── Scrollbar ── */
